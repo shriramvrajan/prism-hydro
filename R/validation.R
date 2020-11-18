@@ -1,13 +1,16 @@
 ### Validation of mean, sd, extremes
 
+library(raster)
+library(hydroGOF)
+library(reshape2)
 # source("R/general_stuff.R")
 
 ### Data =======================================================================
 
-r0 <- readRDS("results/obs_hydro.RDS")
-r1 <- readRDS("results/SWATnaive_model.RDS")
-r2 <- readRDS("results/SWATsampling_model.RDS")
-r3 <- readRDS("results/SWATfinal_model.RDS")
+r0 <- readRDS("data/results/obs_hydro.RDS")
+r1 <- readRDS("data/results/SWATnaive_model.RDS")
+r2 <- readRDS("data/results/SWATsampling_model.RDS")
+r3 <- readRDS("data/results/SWATfinal_model.RDS")
 
 # r4 <- readRDS("../panama_scripts/discharge/results/")
 
@@ -33,6 +36,21 @@ pcp90 <- readRDS("~/panama_scripts/weather/data/hm_90s/interp2/pmodel_winterp.RD
 
 ## Functions ===================================================================
 
+# R^2 of linear model
+rsq <- function(x, y) {
+  x <- vectorize(x)
+  y <- vectorize(y)
+  summary(lm(x ~ y))$r.squared
+}
+
+# Make vector if not
+vectorize <- function(x) {
+  if(!is.vector(x)) {
+    x <- as.vector(x)
+  }
+  return(x)
+}
+
 match_day <- function(rch, simyears=2006:2015) {
   obs <- r0
   obs <- obs[-which(obs$sub %in% outliers), ]
@@ -52,11 +70,13 @@ match_day <- function(rch, simyears=2006:2015) {
   return(results)
 }
 
-validate <- function(v, nfl = 1, by = 'subm', type='mean', ...) { 
+validate <- function(v, nfl = 3, by = 'subm', type='mean', ...) { 
   
   ## nfl is number of maxima for flood analysis
   ## valid 'by'   : 'sub', 'subm', 'suby'
   ## valid 'type' : 'mean', 'sd', 'fl'
+  
+  v <- v[which(v$sub %in% names(upst)), ]
   
   if(any(v$sub %in% outliers)) {
     v <- v[-which(v$sub %in% outliers),]
@@ -85,14 +105,13 @@ validate <- function(v, nfl = 1, by = 'subm', type='mean', ...) {
     }
   })
   
-  if(type == 'fl') {
-    qobs <- unlist(as.list(as.data.frame(qobs)))
-    qsim <- unlist(as.list(as.data.frame(qsim)))
-  }
+  qobs <- setNames(melt(qobs), c('sub', 'mon', 'qo'))
+  qsim <- setNames(melt(qsim), c('sub', 'mon', 'qs'))
+  q2 <- merge(qobs, qsim)
   
-  print(rsq(as.vector(qobs), as.vector(qsim)))
-  print(NSE(as.vector(qsim), as.vector(qobs)))
-  plot(qobs, qsim, pch=19, ...)
+  print(rsq(q2$qo, q2$qs))
+  print(NSE(q2$qs, q2$qo))
+  plot(q2$qo, q2$qs, pch=19, ...)
   abline(0,1)
   
   return(data.frame(qo = qobs, qs = qsim))
@@ -128,53 +147,8 @@ md3 <- match_day(r3)
                   main='Max. discharge,\n RDW model')
 }
 
-### Drought ====================================================================
-{ # drought
-  
-  rankyears <- function(v=v1, type='s') {
-    if(any(v$sub %in% outliers)) v <- v[-which(v$sub %in% outliers), ]
-    
-    if(type == 'o') {
-      sums <- tapply(v$Qo, list(v$sub, v$year), function(x) sum(x, na.rm=T))
-    } else {
-      sums <- tapply(v$Qs, list(v$sub, v$year), function(x) sum(x, na.rm=T))
-    }
-    ranks <- apply(sums, 1, function(x) {
-      # NAs <- length(which(is.na(x)))
-      out <- order(x, decreasing=FALSE, na.last=NA)
-    })
-  }
-  
-  rnk0 <- rankyears(md1, type='o')
-  rnk1 <- rankyears(md1)
-  rnk2 <- rankyears(md2)
-  rnk3 <- rankyears(md3)
-  # rnk4 <- rankyears(v4)
-  
-  whichyear <- function(sim, obs) {
-    lowestobs <- obs[1]
-    return(which(sim == lowestobs))
-  }
-  
-  matchyears <- function(rnk) {
-    return(mapply(whichyear, rnk, rnk0))
-  }
-  
-  m1 <- matchyears(rnk1)
-  m2 <- matchyears(rnk2)
-  m3 <- matchyears(rnk3)
-  # m4 <- matchyears(rnk4)
-  
-  par(mfrow = c(1, 1))
-  
-  hist(m3, col=rgb(0,0,1,0.4), breaks=10, border=NA, main = 'Simulated ranks of driest year by location')
-  hist(m1, col=rgb(1,0,0,0.4), breaks=10, border=NA, add=T)
-  legend(x=5, y=40, legend=c("Naive model", "Final model"), 
-         fill=c(rgb(1,0,0,0.4), rgb(0,0,1,0.4)),
-         border=NA,
-         bty="n")
-  
-}
+
+
 
 ### Alphas =====================================================================
 { # alphas
@@ -219,11 +193,19 @@ md3 <- match_day(r3)
   }
 }
 
+### Predictors of failure ======================================================
+
+# GLM: NSE ~ upstream * elev * nsub (3 outliers)
+
+
+
 
 
 
 ### Appendix ===================================================================
-# 
+# Snippets of code that I'm not using any more 
+
+
 # 
 # { # more outliers
 #   par(mfrow=c(1,1))
@@ -321,3 +303,49 @@ md3 <- match_day(r3)
 #        'mon' = legend("bottomright", fill=brewer.pal(12, 'Paired'), bty="n",
 #                       legend=month_names),
 #        'sub' = legend())
+# { # drought
+#   
+#   rankyears <- function(v=v1, type='s') {
+#     if(any(v$sub %in% outliers)) v <- v[-which(v$sub %in% outliers), ]
+#     
+#     if(type == 'o') {
+#       sums <- tapply(v$Qo, list(v$sub, v$year), function(x) sum(x, na.rm=T))
+#     } else {
+#       sums <- tapply(v$Qs, list(v$sub, v$year), function(x) sum(x, na.rm=T))
+#     }
+#     ranks <- apply(sums, 1, function(x) {
+#       # NAs <- length(which(is.na(x)))
+#       out <- order(x, decreasing=FALSE, na.last=NA)
+#     })
+#   }
+#   
+#   rnk0 <- rankyears(md1, type='o')
+#   rnk1 <- rankyears(md1)
+#   rnk2 <- rankyears(md2)
+#   rnk3 <- rankyears(md3)
+#   # rnk4 <- rankyears(v4)
+#   
+#   whichyear <- function(sim, obs) {
+#     lowestobs <- obs[1]
+#     return(which(sim == lowestobs))
+#   }
+#   
+#   matchyears <- function(rnk) {
+#     return(mapply(whichyear, rnk, rnk0))
+#   }
+#   
+#   m1 <- matchyears(rnk1)
+#   m2 <- matchyears(rnk2)
+#   m3 <- matchyears(rnk3)
+#   # m4 <- matchyears(rnk4)
+#   
+#   par(mfrow = c(1, 1))
+#   
+#   hist(m3, col=rgb(0,0,1,0.4), breaks=10, border=NA, main = 'Simulated ranks of driest year by location')
+#   hist(m1, col=rgb(1,0,0,0.4), breaks=10, border=NA, add=T)
+#   legend(x=5, y=40, legend=c("Naive model", "Final model"), 
+#          fill=c(rgb(1,0,0,0.4), rgb(0,0,1,0.4)),
+#          border=NA,
+#          bty="n")
+#   
+# }
