@@ -3,7 +3,7 @@
 library(raster)
 library(hydroGOF)
 library(reshape2)
-# source("R/general_stuff.R")
+library(RColorBrewer)
 
 ### Data =======================================================================
 
@@ -12,17 +12,18 @@ r1 <- readRDS("data/results/SWATnaive_model.RDS")
 r2 <- readRDS("data/results/SWATsampling_model.RDS")
 r3 <- readRDS("data/results/SWATfinal_model.RDS")
 
-# r4 <- readRDS("../panama_scripts/discharge/results/")
-
+# outliers <- c(999999,999399)
 outliers <- c(11, 564, 255, 190, 403, 393, 530)
 # 11 is on the border with costa rice
-# 564 just seems poorly delineateed- assigned to the wrong stream
-# 403 is in the middle of indigenous territory - bad pcp
-# 255 only has two points of observation?
+### 564 just seems poorly delineateed- assigned to the wrong stream
+### 403 is in the middle of indigenous territory - bad pcp
+### 255 only has two points of observation?
 # 94 is downstream of the Bayano dam -- FIXED, it's sub 981 now
-# 190 is affected by lake Gatun, the station is downstream of a dam
-# 393 also on the border with costa rica
+### 190 is affected by lake Gatun, the station is downstream of a dam
+### 393 also on the border with costa rica
 # 530 also on the border with costa rica
+## Three hashes means they're the most downstream observation pt of that river
+## Explanation for those: border, poorly delineated, downstream of dam
 
 wshed <- shapefile("data/wshed_regionalized.shp")
 upst <- readRDS("data/upstream.rds")
@@ -36,19 +37,19 @@ pcp90 <- readRDS("~/panama_scripts/weather/data/hm_90s/interp2/pmodel_winterp.RD
 
 ## Functions ===================================================================
 
-# R^2 of linear model
-rsq <- function(x, y) {
-  x <- vectorize(x)
-  y <- vectorize(y)
-  summary(lm(x ~ y))$r.squared
-}
-
 # Make vector if not
 vectorize <- function(x) {
   if(!is.vector(x)) {
     x <- as.vector(x)
   }
   return(x)
+}
+
+# R^2 of linear model
+rsq <- function(x, y) {
+  x <- vectorize(x)
+  y <- vectorize(y)
+  summary(lm(x ~ y))$r.squared
 }
 
 match_day <- function(rch, simyears=2006:2015) {
@@ -105,16 +106,25 @@ validate <- function(v, nfl = 3, by = 'subm', type='mean', ...) {
     }
   })
   
-  qobs <- setNames(melt(qobs), c('sub', 'mon', 'qo'))
-  qsim <- setNames(melt(qsim), c('sub', 'mon', 'qs'))
-  q2 <- merge(qobs, qsim)
+  if(type == 'fl') {
+    qo <- unlist(qobs); qs <- unlist(qsim)
+    sub <- rep(sapply(row.names(qobs), function(n) rep(n, nfl)), 12)
+    mon <- unlist(lapply(1:12, function(n) rep(n, nfl*nrow(qobs))))
+    q2 <- data.frame(sub = sub, mon = mon, qo = qo, qs = qs)
+  } else {
+    qo <- setNames(melt(qobs), c('sub', 'mon', 'qo'))
+    qs <- setNames(melt(qsim), c('sub', 'mon', 'qs'))
+    q2 <- merge(qo, qs)
+  }
+  
   
   print(rsq(q2$qo, q2$qs))
   print(NSE(q2$qs, q2$qo))
+  print(paste("Pbias", pbias(q2$qs, q2$qo)))
   plot(q2$qo, q2$qs, pch=19, ...)
   abline(0,1)
   
-  return(data.frame(qo = qobs, qs = qsim))
+  return(q2)
 }
 
 
@@ -127,24 +137,29 @@ md2 <- match_day(r2)
 md3 <- match_day(r3)
 
 { # means
-  par(mfrow = c(1,3))
-  v1 <- validate(md1, cex=0.7, main='Mean discharge,\n NN model')
-  v2 <- validate(md2, cex=0.7, main='Mean discharge,\n IWGEN model')
-  v3 <- validate(md3, cex=0.7, main='Mean discharge,\n RDW model')
-}
-
-{ #sd and extreme
-  par(mfrow = c(2,3))
-  v1s <- validate(md1, cex=0.7, type='sd', main='SD discharge,\n NN model')
-  v2s <- validate(md2, cex=0.7, type='sd', main='SD discharge,\n IWGEN model')
-  v3s <- validate(md3, cex=0.7, type='sd', main='SD discharge,\n RDW model')
+  png(filename="plots/fig3.png", width=800, height=800, 
+      pointsize=20, units="px")
+  par(mfrow = c(3,3))
+  cex1 = 0.5
   
-  v1e <- validate(md1, cex=0.7, type='fl', 
+  v1 <- validate(md1, cex=cex1, main='Mean discharge,\n NN model')
+  v2 <- validate(md2, cex=cex1, main='Mean discharge,\n IWGEN model')
+  v3 <- validate(md3, cex=cex1, main='Mean discharge,\n RDW model')
+  
+  # sd
+  v1s <- validate(md1, cex=cex1, type='sd', main='SD discharge,\n NN model')
+  v2s <- validate(md2, cex=cex1, type='sd', main='SD discharge,\n IWGEN model')
+  v3s <- validate(md3, cex=cex1, type='sd', main='SD discharge,\n RDW model')
+  
+  # max
+  nfl1 = 3 # top n max days
+  v1e <- validate(md1, cex=cex1, type='fl', nfl=nfl1,
                   main='Max. discharge,\n NN model')
-  v2e <- validate(md2, cex=0.7, type='fl', 
+  v2e <- validate(md2, cex=cex1, type='fl', nfl=nfl1,
                   main='Max. discharge,\n IWGEN model')
-  v3e <- validate(md3, cex=0.7, type='fl', 
+  v3e <- validate(md3, cex=cex1, type='fl', nfl=nfl1,
                   main='Max. discharge,\n RDW model')
+  dev.off()
 }
 
 
@@ -152,6 +167,7 @@ md3 <- match_day(r3)
 
 ### Alphas =====================================================================
 { # alphas
+  ## Add legend, titles, axes labels
   adf <- data.frame(region = unlist(lapply(1:6, function(x) rep(x, 12))),
                     month = rep(1:12, 6),
                     x = unlist(alphas_x), 
@@ -165,7 +181,10 @@ md3 <- match_day(r3)
   idf <- tapply(idf$I, list(idf$region, idf$mon), function(x) x)
   
   pal <- brewer.pal(6, 'Accent')
-  par(mfrow=c(3,1))
+  
+  png(filename="plots/fig6.png", width=500, height=600,
+      pointsize=10, units="px")
+  par(mfrow=c(2,1))
   for(i in 1:6) {
     if(i == 1) {
       plot(1:12, adf$x[adf$region == i], type='l', col=pal[i], 
@@ -174,6 +193,7 @@ md3 <- match_day(r3)
       lines(1:12, adf$x[adf$region == i], col=pal[i], lwd=2) 
     }
   }
+  abline(v = c(4, 10))
   for(i in 1:6) {
     if(i == 1) {
       plot(1:12, adf$q[adf$region == i], type='l', col=pal[i], 
@@ -182,15 +202,9 @@ md3 <- match_day(r3)
       lines(1:12, adf$q[adf$region == i], col=pal[i], lwd=2) 
     }
   }
-  
-  for(i in 1:6) {
-    if(i == 1) {
-      plot(idf[i,], type='l', col=pal[i], lwd=2, 
-           ylim=c(0, max(idf, na.rm=T) + 0.05))
-    } else {
-      lines(idf[i,], col=pal[i], lwd=2)
-    }
-  }
+  abline(v = c(4, 10))
+
+  dev.off()
 }
 
 ### Predictors of failure ======================================================
@@ -205,7 +219,15 @@ md3 <- match_day(r3)
 ### Appendix ===================================================================
 # Snippets of code that I'm not using any more 
 
-
+# for(i in 1:6) {
+#   if(i == 1) {
+#     plot(idf[i,], type='l', col=pal[i], lwd=2, 
+#          ylim=c(0, max(idf, na.rm=T) + 0.05))
+#   } else {
+#     lines(idf[i,], col=pal[i], lwd=2)
+#   }
+# }
+# abline(v = c(4, 10))
 # 
 # { # more outliers
 #   par(mfrow=c(1,1))
