@@ -1,4 +1,4 @@
-# prism_hydro
-Hydrology model of Panama
-test
-test2
+## Hydrological Model of Panama
+### Panama Research and Integrated Sustainability Project
+
+Currently storing output and validation scripts - will be updated regularly.
