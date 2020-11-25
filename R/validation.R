@@ -1,5 +1,3 @@
-### Validation of mean, sd, extremes
-
 library(raster)
 library(hydroGOF)
 library(reshape2)
@@ -20,7 +18,6 @@ outliers <- c(11, 564, 255, 190, 403, 393, 530)
 ### 255 only has two points of observation?
 # 94 is downstream of the Bayano dam -- FIXED, it's sub 981 now
 ### 190 is affected by lake Gatun, the station is downstream of a dam
-### 393 also on the border with costa rica
 # 530 also on the border with costa rica
 ## Three hashes means they're the most downstream observation pt of that river
 ## Explanation for those: border, poorly delineated, downstream of dam
@@ -75,11 +72,103 @@ validate <- function(v, nfl = 3, by = 'subm', type='mean', ...) {
   
   ## nfl is number of maxima for flood analysis
   ## valid 'by'   : 'sub', 'subm', 'suby'
-  ## valid 'type' : 'mean', 'sd', 'fl'
   
-  v <- v[which(v$sub %in% names(upst)), ]
+  pal <- brewer.pal(6, 'Accent')
   
-  if(any(v$sub %in% outliers)) {
+  png(filename="plots/fig6.png", width=500, height=600,
+      pointsize=10, units="px")
+  par(mfrow=c(2,1))
+  for(i in 1:6) {
+    if(i == 1) {
+      plot(1:12, adf$x[adf$region == i], type='l', col=pal[i], 
+           lwd = 2, ylim = c(0, 16))
+    } else {
+      lines(1:12, adf$x[adf$region == i], col=pal[i], lwd=2) 
+    }
+  }
+  abline(v = c(4, 10))
+  for(i in 1:6) {
+    if(i == 1) {
+      plot(1:12, adf$q[adf$region == i], type='l', col=pal[i], 
+           lwd = 2, ylim = c(0, 11))
+    } else {
+      lines(1:12, adf$q[adf$region == i], col=pal[i], lwd=2) 
+    }
+  }
+  abline(v = c(4, 10))
+
+  dev.off()
+}
+
+### Predictors of failure ======================================================
+
+# GLM: NSE ~ upstream * elev * nsub (3 outliers)
+
+basin_nse <- by(v3, v3$sub, function(v) {
+  return(NSE(v$qs, v$qo))
+})
+
+# getting distances to nearest station & n stations
+met_st <- readRDS("data/met_stations.RDS")
+hyd_st <- readRDS("data/hyd_stations.RDS")
+
+pof <- data.frame(sub = names(basin_nse),
+                  nse = as.vector(basin_nse))
+
+# adding elevation
+pof$elev <- sapply(pof$sub, function(sub) {
+  return(hyd_st$elev[which(hyd_st$sub == sub)])
+})
+
+# adding dist. to nearest p station
+lonlat <- rbind(cbind(met_st$lon, met_st$lat), 
+                cbind(hyd_st$lon, hyd_st$lat))
+
+dm1 <- as.matrix(dist(lonlat, diag=T, upper=T))[204:262, 1:203]
+# columns are meteorological stations, rows are hydrological stations
+nearest <- sapply(1:nrow(dm1), function(h) {
+  min(dm1[h,])
+})
+names(nearest) <- hyd_st$sub
+pof$near <- nearest[pof$sub]
+
+# adding number of pcp stations by region
+pof$region <- sapply(pof$sub, function(s) {
+  return(wshed$region[which(wshed$Subbasin == s)])
+})
+ngauge <- tapply(met_st$region, met_st$region, length)
+pof$ngauge <- ngauge[pof$region]
+
+# adding number of upstream/downstream subs 
+pof$up <- sapply(pof$sub, function(s) {
+  length(upst[[as.character(s)]])
+})
+pof$down <- sapply(pof$sub, function(s) {
+  length(downst[[as.character(s)]])
+})
+pof$nsub = pof$up + pof$down # watershed size
+
+lm1 <- lm(nse ~ down * elev * ngauge, data=pof)
+plot(pof$nse, predict.lm(lm1))
+rsq(pof$nse, predict.lm(lm1))
+(summary(lm1))
+
+### Appendix ===================================================================
+# Snippets of code that I'm not using any more
+
+# pof <- merge(pof, wshed, by.x="sub", by.y="Subbasin")
+# pof <- pof[, c(1, 2, 5, 6, 7, 12, 13, 14, 15, 16, 22)]
+
+# for(i in 1:6) {
+#   if(i == 1) {
+#     plot(idf[i,], type='l', col=pal[i], lwd=2, 
+#          ylim=c(0, max(idf, na.rm=T) + 0.05))
+#   } else {
+#     lines(idf[i,], col=pal[i], lwd=2)
+#   }
+# }
+# abline(v = c(4, 10))
+# if(any(v$sub %in% outliers)) {
     v <- v[-which(v$sub %in% outliers),]
   }
   
@@ -122,156 +211,7 @@ validate <- function(v, nfl = 3, by = 'subm', type='mean', ...) {
   print(NSE(q2$qs, q2$qo))
   print(paste("Pbias", pbias(q2$qs, q2$qo)))
   plot(q2$qo, q2$qs, pch=19, ...)
-  abline(0,1)
-  
-  return(q2)
-}
-
-
-### Mean SD max ================================================================
-md1 <- match_day(r3)
-v1 <- validate(md1)
-
-md1 <- match_day(r1)
-md2 <- match_day(r2)
-md3 <- match_day(r3)
-
-{ # means
-  png(filename="plots/fig3.png", width=800, height=800, 
-      pointsize=20, units="px")
-  par(mfrow = c(3,3))
-  cex1 = 0.5
-  
-  v1 <- validate(md1, cex=cex1, main='Mean discharge,\n NN model')
-  v2 <- validate(md2, cex=cex1, main='Mean discharge,\n IWGEN model')
-  v3 <- validate(md3, cex=cex1, main='Mean discharge,\n RDW model')
-  
-  # sd
-  v1s <- validate(md1, cex=cex1, type='sd', main='SD discharge,\n NN model')
-  v2s <- validate(md2, cex=cex1, type='sd', main='SD discharge,\n IWGEN model')
-  v3s <- validate(md3, cex=cex1, type='sd', main='SD discharge,\n RDW model')
-  
-  # max
-  nfl1 = 3 # top n max days
-  v1e <- validate(md1, cex=cex1, type='fl', nfl=nfl1,
-                  main='Max. discharge,\n NN model')
-  v2e <- validate(md2, cex=cex1, type='fl', nfl=nfl1,
-                  main='Max. discharge,\n IWGEN model')
-  v3e <- validate(md3, cex=cex1, type='fl', nfl=nfl1,
-                  main='Max. discharge,\n RDW model')
-  dev.off()
-}
-
-
-
-
-### Alphas =====================================================================
-{ # alphas
-  ## Add legend, titles, axes labels
-  adf <- data.frame(region = unlist(lapply(1:6, function(x) rep(x, 12))),
-                    month = rep(1:12, 6),
-                    x = unlist(alphas_x), 
-                    q = unlist(alphas_q))   # data frame of alphas
-  idf <- adf[, 1:2]
-  idf$I <- unlist(lapply(1:nrow(idf), function(x) {
-    cat(idf$region[x], idf$month[x], "\n")
-    p90 <- pcp90[pcp90$region == idf$region[x] & pcp90$mon == idf$month[x], ]
-    return(sd(p90$obs))
-  }))
-  idf <- tapply(idf$I, list(idf$region, idf$mon), function(x) x)
-  
-  pal <- brewer.pal(6, 'Accent')
-  
-  png(filename="plots/fig6.png", width=500, height=600,
-      pointsize=10, units="px")
-  par(mfrow=c(2,1))
-  for(i in 1:6) {
-    if(i == 1) {
-      plot(1:12, adf$x[adf$region == i], type='l', col=pal[i], 
-           lwd = 2, ylim = c(0, 16))
-    } else {
-      lines(1:12, adf$x[adf$region == i], col=pal[i], lwd=2) 
-    }
-  }
-  abline(v = c(4, 10))
-  for(i in 1:6) {
-    if(i == 1) {
-      plot(1:12, adf$q[adf$region == i], type='l', col=pal[i], 
-           lwd = 2, ylim = c(0, 11))
-    } else {
-      lines(1:12, adf$q[adf$region == i], col=pal[i], lwd=2) 
-    }
-  }
-  abline(v = c(4, 10))
-
-  dev.off()
-}
-
-### Predictors of failure ======================================================
-
-# GLM: NSE ~ upstream * elev * nsub (3 outliers)
-
-
-
-
-
-
-### Appendix ===================================================================
-# Snippets of code that I'm not using any more 
-
-# for(i in 1:6) {
-#   if(i == 1) {
-#     plot(idf[i,], type='l', col=pal[i], lwd=2, 
-#          ylim=c(0, max(idf, na.rm=T) + 0.05))
-#   } else {
-#     lines(idf[i,], col=pal[i], lwd=2)
-#   }
-# }
-# abline(v = c(4, 10))
-# 
-# { # more outliers
-#   par(mfrow=c(1,1))
-#   plot(wshed, col='gray', border=NA)
-#   plot(wshed[wshed$Subbasin %in% c(370, 375, 397), ], col='red', add=T)
-# }
-# {
-#   ## 90s?
-#   r9 <- read.csv("results/8500_STRI_LU_HM_GWR_rch.csv")
-#   r9 <- r9[, c("SUB", "YEAR", "MON", "FLOW_OUTcms")]
-#   names(r9)[4] <- "FLOW_OUT"
-#   
-#   r9 <- r9[order(r9$SUB, r9$YEAR, r9$MON),]
-#   
-#   lookup <- readRDS("data/commondata/980to915nbr.RDS")
-#   r9$SUB <- sapply(r9$SUB, function(x) which(lookup == x))
-#   
-#   r00 <- r0[r0$year %in% r9$YEAR,]
-#   r00 <- tapply(r00$q, list(r00$sub, r00$mon), function(x) mean(x, na.rm=T))
-#   r99 <- r9[r9$SUB %in% r0$sub, ]
-#   r99 <- tapply(r9$FLOW_OUT, list(r9$SUB, r9$YEAR), mean)
-#   
-#   pstat <- read.csv("data/commondata/available_pstations_00s.csv")
-#   pstat2 <- SpatialPoints(pstat[, c(2,3)], proj4string=wgs84)
-#   pstat2 <- spTransform(pstat2, crs(wshed))
-#   p2 <- over(pstat2, wshed)
-#   p2 <- p2[, c("Subbasin", "region")]
-#   pstat <- cbind(pstat, p2)
-#   pstat <- pstat[-which(is.na(pstat$Subbasin)), ]
-#   saveRDS(pstat, "data/commondata/active_pstations_00.RDS")
-# }
-
-
-# n1 <- sum(tapply(md1$res, md1$sub, function(x) !all(is.na(x))))
-# n2 <- sum(tapply(md2$res, md2$sub, function(x) !all(is.na(x))))
-# 
-# # length(names(upst))
-# # r0 <- r0[r0$year %in% 2006:2015, ]
-# # upst <- upst[sort(unique(r0$sub))]
-# # ind <- unlist(lapply(upst, function(u) {
-# #   try <- unlist(lapply(upst, function(v) is_subset(u, v)))
-# #   if(sum(try) == 1) return(1)
-# # }))
-# # upst2 <- upst[names(ind)]
+  # upst2 <- upst[names(ind)]
 # # plot(wshed, col='gray', border=NA)
 # # plot(wshed[wshed$Subbasin %in% aa,], col='blue', border=NA, add=T) # total basins
 # # plot(wshed[wshed$Subbasin %in% bb,], col='red', border=NA, add=T) # terminuses
