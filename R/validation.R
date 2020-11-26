@@ -72,105 +72,11 @@ validate <- function(v, nfl = 3, by = 'subm', type='mean', ...) {
   
   ## nfl is number of maxima for flood analysis
   ## valid 'by'   : 'sub', 'subm', 'suby'
-  
-  pal <- brewer.pal(6, 'Accent')
-  
-  png(filename="plots/fig6.png", width=500, height=600,
-      pointsize=10, units="px")
-  par(mfrow=c(2,1))
-  for(i in 1:6) {
-    if(i == 1) {
-      plot(1:12, adf$x[adf$region == i], type='l', col=pal[i], 
-           lwd = 2, ylim = c(0, 16))
-    } else {
-      lines(1:12, adf$x[adf$region == i], col=pal[i], lwd=2) 
-    }
-  }
-  abline(v = c(4, 10))
-  for(i in 1:6) {
-    if(i == 1) {
-      plot(1:12, adf$q[adf$region == i], type='l', col=pal[i], 
-           lwd = 2, ylim = c(0, 11))
-    } else {
-      lines(1:12, adf$q[adf$region == i], col=pal[i], lwd=2) 
-    }
-  }
-  abline(v = c(4, 10))
-
-  dev.off()
-}
-
-### Predictors of failure ======================================================
-
-# GLM: NSE ~ upstream * elev * nsub (3 outliers)
-
-basin_nse <- by(v3, v3$sub, function(v) {
-  return(NSE(v$qs, v$qo))
-})
-
-# getting distances to nearest station & n stations
-met_st <- readRDS("data/met_stations.RDS")
-hyd_st <- readRDS("data/hyd_stations.RDS")
-
-pof <- data.frame(sub = names(basin_nse),
-                  nse = as.vector(basin_nse))
-
-# adding elevation
-pof$elev <- sapply(pof$sub, function(sub) {
-  return(hyd_st$elev[which(hyd_st$sub == sub)])
-})
-
-# adding dist. to nearest p station
-lonlat <- rbind(cbind(met_st$lon, met_st$lat), 
-                cbind(hyd_st$lon, hyd_st$lat))
-
-dm1 <- as.matrix(dist(lonlat, diag=T, upper=T))[204:262, 1:203]
-# columns are meteorological stations, rows are hydrological stations
-nearest <- sapply(1:nrow(dm1), function(h) {
-  min(dm1[h,])
-})
-names(nearest) <- hyd_st$sub
-pof$near <- nearest[pof$sub]
-
-# adding number of pcp stations by region
-pof$region <- sapply(pof$sub, function(s) {
-  return(wshed$region[which(wshed$Subbasin == s)])
-})
-ngauge <- tapply(met_st$region, met_st$region, length)
-pof$ngauge <- ngauge[pof$region]
-
-# adding number of upstream/downstream subs 
-pof$up <- sapply(pof$sub, function(s) {
-  length(upst[[as.character(s)]])
-})
-pof$down <- sapply(pof$sub, function(s) {
-  length(downst[[as.character(s)]])
-})
-pof$nsub = pof$up + pof$down # watershed size
-
-lm1 <- lm(nse ~ down * elev * ngauge, data=pof)
-plot(pof$nse, predict.lm(lm1))
-rsq(pof$nse, predict.lm(lm1))
-(summary(lm1))
-
-### Appendix ===================================================================
-# Snippets of code that I'm not using any more
-
-# pof <- merge(pof, wshed, by.x="sub", by.y="Subbasin")
-# pof <- pof[, c(1, 2, 5, 6, 7, 12, 13, 14, 15, 16, 22)]
-
-# for(i in 1:6) {
-#   if(i == 1) {
-#     plot(idf[i,], type='l', col=pal[i], lwd=2, 
-#          ylim=c(0, max(idf, na.rm=T) + 0.05))
-#   } else {
-#     lines(idf[i,], col=pal[i], lwd=2)
-#   }
-# }
-# abline(v = c(4, 10))
-# if(any(v$sub %in% outliers)) {
+  if(any(v$sub %in% outliers)) {
     v <- v[-which(v$sub %in% outliers),]
   }
+  
+  v <- v[which(v$sub %in% names(upst)), ]
   
   tapplygrp <- switch(by, 'sub' = v$sub, 'subm' = list(v$sub, v$mon),
                       'submy' = list(v$sub, v$mon, v$year))
@@ -211,7 +117,149 @@ rsq(pof$nse, predict.lm(lm1))
   print(NSE(q2$qs, q2$qo))
   print(paste("Pbias", pbias(q2$qs, q2$qo)))
   plot(q2$qo, q2$qs, pch=19, ...)
-  # upst2 <- upst[names(ind)]
+  
+  
+}
+
+### Mean SD max ================================================================
+
+md1 <- match_day(r1)
+md2 <- match_day(r2)
+md3 <- match_day(r3)
+
+{
+png(filename="plots/fig3.png", width=800, height=800, 
+    pointsize=20, units="px")
+par(mfrow = c(3,3))
+cex1 = 0.5
+
+# mean
+v1 <- validate(md1, cex=cex1, main='Mean discharge,\n NN model')
+v2 <- validate(md2, cex=cex1, main='Mean discharge,\n IWGEN model')
+v3 <- validate(md3, cex=cex1, main='Mean discharge,\n RDW model')
+
+# sd
+v1s <- validate(md1, cex=cex1, type='sd', main='SD discharge,\n NN model')
+v2s <- validate(md2, cex=cex1, type='sd', main='SD discharge,\n IWGEN model')
+v3s <- validate(md3, cex=cex1, type='sd', main='SD discharge,\n RDW model')
+
+# max
+nfl1 = 3 # top n max days
+v1e <- validate(md1, cex=cex1, type='fl', nfl=nfl1,
+                main='Max. discharge,\n NN model')
+v2e <- validate(md2, cex=cex1, type='fl', nfl=nfl1,
+                main='Max. discharge,\n IWGEN model')
+v3e <- validate(md3, cex=cex1, type='fl', nfl=nfl1,
+                main='Max. discharge,\n RDW model')
+dev.off()
+}
+
+
+## Alphas ======================================================================
+
+{
+  pal <- brewer.pal(6, 'Accent')
+  
+  png(filename="plots/fig6.png", width=500, height=600,
+      pointsize=10, units="px")
+  par(mfrow=c(2,1))
+  for(i in 1:6) {
+    if(i == 1) {
+      plot(1:12, adf$x[adf$region == i], type='l', col=pal[i], 
+           lwd = 2, ylim = c(0, 16))
+    } else {
+      lines(1:12, adf$x[adf$region == i], col=pal[i], lwd=2) 
+    }
+  }
+  abline(v = c(4, 10))
+  for(i in 1:6) {
+    if(i == 1) {
+      plot(1:12, adf$q[adf$region == i], type='l', col=pal[i], 
+           lwd = 2, ylim = c(0, 11))
+    } else {
+      lines(1:12, adf$q[adf$region == i], col=pal[i], lwd=2) 
+    }
+  }
+  abline(v = c(4, 10))
+  
+  dev.off()
+}
+
+### Predictors of failure ======================================================
+
+# GLM: NSE ~ upstream * elev * nsub (3 outliers)
+
+basin_nse <- by(v3, v3$sub, function(v) {
+  return(NSE(v$qs, v$qo))
+})
+basin_rsq <- by(v3, v3$sub, function(v) {
+  return(rsq(v$qs, v$qo))
+})
+
+# getting distances to nearest station & n stations
+met_st <- readRDS("data/met_stations.RDS")
+hyd_st <- readRDS("data/hyd_stations.RDS")
+
+pof <- data.frame(sub = names(basin_nse),
+                  nse = as.vector(basin_nse),
+                  rsq = as.vector(basin_rsq))
+
+# adding elevation
+pof$elev <- sapply(pof$sub, function(sub) {
+  return(hyd_st$elev[which(hyd_st$sub == sub)])
+})
+
+# adding dist. to nearest p station
+lonlat <- rbind(cbind(met_st$lon, met_st$lat), 
+                cbind(hyd_st$lon, hyd_st$lat))
+
+dm1 <- as.matrix(dist(lonlat, diag=T, upper=T))[204:262, 1:203]
+# columns are meteorological stations, rows are hydrological stations
+nearest <- sapply(1:nrow(dm1), function(h) {
+  min(dm1[h,])
+})
+names(nearest) <- hyd_st$sub
+pof$near <- nearest[pof$sub]
+
+# adding number of pcp stations by region
+pof$region <- sapply(pof$sub, function(s) {
+  return(wshed$region[which(wshed$Subbasin == s)])
+})
+ngauge <- tapply(met_st$region, met_st$region, length)
+pof$ngauge <- ngauge[pof$region]
+
+# adding number of upstream/downstream subs 
+pof$up <- sapply(pof$sub, function(s) {
+  length(upst[[as.character(s)]])
+})
+pof$down <- sapply(pof$sub, function(s) {
+  length(downst[[as.character(s)]])
+})
+pof$nsub = pof$up + pof$down # watershed size
+
+# nse ~ down * elev * ngauge works best
+lm1 <- lm(nse ~ down * ngauge * elev * near, data=pof)
+plot(pof$nse, predict.lm(lm1), xlab = "obs", ylab = "sim")
+rsq(pof$nse, predict.lm(lm1))
+(summary(lm1))
+
+### Appendix ===================================================================
+# Snippets of code that I'm not using any more
+
+# pof <- merge(pof, wshed, by.x="sub", by.y="Subbasin")
+# pof <- pof[, c(1, 2, 5, 6, 7, 12, 13, 14, 15, 16, 22)]
+
+# for(i in 1:6) {
+#   if(i == 1) {
+#     plot(idf[i,], type='l', col=pal[i], lwd=2, 
+#          ylim=c(0, max(idf, na.rm=T) + 0.05))
+#   } else {
+#     lines(idf[i,], col=pal[i], lwd=2)
+#   }
+# }
+# abline(v = c(4, 10))
+
+# upst2 <- upst[names(ind)]
 # # plot(wshed, col='gray', border=NA)
 # # plot(wshed[wshed$Subbasin %in% aa,], col='blue', border=NA, add=T) # total basins
 # # plot(wshed[wshed$Subbasin %in% bb,], col='red', border=NA, add=T) # terminuses
