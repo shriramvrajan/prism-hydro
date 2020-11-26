@@ -263,9 +263,12 @@ pof$down <- sapply(pof$sub, function(s) {
 })
 pof$nsub = pof$up + pof$down # watershed size
 
-# nse ~ down * elev * ngauge works best
-lm1 <- lm(nse ~ down * ngauge * elev * near, data=pof)
+subs_per_region <- tapply(wshed$region, wshed$region, length)
+pof$propg <- pof$ngauge/subs_per_region[pof$region]
+
+# nse ~ down * elev * ngauge
+lm1 <- lm(nse ~ down * elev * propg, data=pof)
 plot(pof$nse, predict.lm(lm1), xlab = "obs", ylab = "sim")
 rsq(pof$nse, predict.lm(lm1))
-(summary(lm1))
+summary(lm1)
 
