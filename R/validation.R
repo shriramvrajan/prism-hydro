@@ -202,33 +202,27 @@ md3 <- match_day(r3)
 
 ### Within-basin analysis ======================================================
 
-b_nse <- function(v) {
-  return(by(v, v$sub, function(x) {
-    return(NSE(x$qs, x$qo))
-  }))
+b_nse <- function(md) {
+  md <- md[md$sub %in% names(upst),]
+  by(md, md$sub, function(x) {
+    qobs <- tapply(x$Qo, list(x$mon, x$year), mean)
+    qsim <- tapply(x$Qs, list(x$mon, x$year), mean)
+    return(NSE(as.vector(qsim), as.vector(qobs)))
+  })
 }
 
-bn1 <- b_nse(v1)
-bn2 <- b_nse(v2)
-bn3 <- b_nse(v3)
+bn1 <- b_nse(md1)
+bn2 <- b_nse(md2)
+bn3 <- b_nse(md3)
 
 ### Predictors of failure ======================================================
-
-# GLM: NSE ~ upstream * elev * nsub (3 outliers)
-basin_nse <- by(v3, v3$sub, function(v) {
-  return(NSE(v$qs, v$qo))
-})
-basin_rsq <- by(v3, v3$sub, function(v) {
-  return(rsq(v$qs, v$qo))
-})
 
 # getting distances to nearest station & n stations
 met_st <- readRDS("data/met_stations.RDS")
 hyd_st <- readRDS("data/hyd_stations.RDS")
 
-pof <- data.frame(sub = names(basin_nse),
-                  nse = as.vector(basin_nse),
-                  rsq = as.vector(basin_rsq))
+pof <- data.frame(sub = names(bn3),
+                  nse = as.vector(bn3))
 
 # adding elevation
 pof$elev <- sapply(pof$sub, function(sub) {
@@ -264,11 +258,14 @@ pof$down <- sapply(pof$sub, function(s) {
 pof$nsub = pof$up + pof$down # watershed size
 
 subs_per_region <- tapply(wshed$region, wshed$region, length)
-pof$propg <- pof$ngauge/subs_per_region[pof$region]
+pof$dens <- pof$ngauge/subs_per_region[pof$region]
 
+pof2 <- pof[-which(pof$nse < 0.2),]
+pof2 <- pof
 # nse ~ down * elev * ngauge
-lm1 <- lm(nse ~ down * elev * propg, data=pof)
-plot(pof$nse, predict.lm(lm1), xlab = "obs", ylab = "sim")
-rsq(pof$nse, predict.lm(lm1))
+# lm1 <- lm(nse ~ down * elev * propg, data=pof)
+lm1 <- lm(nse ~ propg * down * elev, data=pof2)
+plot(pof2$nse, predict.lm(lm1), xlab = "obs", ylab = "sim")
+rsq(pof2$nse, predict.lm(lm1))
 summary(lm1)
 
