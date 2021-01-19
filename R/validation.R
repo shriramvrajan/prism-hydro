@@ -7,8 +7,7 @@ library(RColorBrewer)
 
 r0 <- readRDS("data/results/obs_hydro.RDS")
 r1 <- readRDS("data/results/SWATnaive_model.RDS")
-r2 <- readRDS("data/results/SWATsampling_model.RDS")
-r3 <- readRDS("data/results/SWATfinal_model.RDS")
+r2 <- readRDS("data/results/SWATfinal_model.RDS")
 
 # outliers <- c(999999,999399)
 outliers <- c(11, 564, 255, 190, 403, 393, 530)
@@ -126,31 +125,26 @@ validate <- function(v, nfl = 3, by = 'subm', type='mean', ...) {
 
 md1 <- match_day(r1)
 md2 <- match_day(r2)
-md3 <- match_day(r3)
 
 {
   png(filename="plots/fig3.png", width=800, height=800, 
       pointsize=20, units="px")
-  par(mfrow = c(3,3))
+  par(mfrow = c(2,3))
   cex1 = 0.5
   
   # mean
   v1 <- validate(md1, cex=cex1, main='Mean discharge,\n NN model')
-  v2 <- validate(md2, cex=cex1, main='Mean discharge,\n IWGEN model')
-  v3 <- validate(md3, cex=cex1, main='Mean discharge,\n RDW model')
+  v2 <- validate(md2, cex=cex1, main='Mean discharge,\n RDW model')
   
   # sd
   v1s <- validate(md1, cex=cex1, type='sd', main='SD discharge,\n NN model')
-  v2s <- validate(md2, cex=cex1, type='sd', main='SD discharge,\n IWGEN model')
-  v3s <- validate(md3, cex=cex1, type='sd', main='SD discharge,\n RDW model')
+  v2s <- validate(md2, cex=cex1, type='sd', main='SD discharge,\n RDW model')
   
   # max
   nfl1 = 3 # top n max days
   v1e <- validate(md1, cex=cex1, type='fl', nfl=nfl1,
                   main='Max. discharge,\n NN model')
   v2e <- validate(md2, cex=cex1, type='fl', nfl=nfl1,
-                  main='Max. discharge,\n IWGEN model')
-  v3e <- validate(md3, cex=cex1, type='fl', nfl=nfl1,
                   main='Max. discharge,\n RDW model')
   dev.off()
 }
@@ -217,6 +211,7 @@ bn3 <- b_nse(md3)
 
 ### Predictors of failure ======================================================
 
+
 # getting distances to nearest station & n stations
 met_st <- readRDS("data/met_stations.RDS")
 hyd_st <- readRDS("data/hyd_stations.RDS")
@@ -264,7 +259,7 @@ pof2 <- pof[-which(pof$nse < 0.2),]
 pof2 <- pof
 # nse ~ down * elev * ngauge
 # lm1 <- lm(nse ~ down * elev * propg, data=pof)
-lm1 <- lm(nse ~ propg * down * elev, data=pof2)
+lm1 <- lm(nse ~ dens * elev, data=pof2)
 plot(pof2$nse, predict.lm(lm1), xlab = "obs", ylab = "sim")
 rsq(pof2$nse, predict.lm(lm1))
 summary(lm1)
