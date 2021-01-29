@@ -1,7 +1,6 @@
 library(raster)
 library(hydroGOF)
 library(reshape2)
-library(RColorBrewer)
 
 ### Data =======================================================================
 
@@ -207,7 +206,6 @@ b_nse <- function(md) {
 
 bn1 <- b_nse(md1)
 bn2 <- b_nse(md2)
-bn3 <- b_nse(md3)
 
 ### Predictors of failure ======================================================
 
@@ -216,8 +214,8 @@ bn3 <- b_nse(md3)
 met_st <- readRDS("data/met_stations.RDS")
 hyd_st <- readRDS("data/hyd_stations.RDS")
 
-pof <- data.frame(sub = names(bn3),
-                  nse = as.vector(bn3))
+pof <- data.frame(sub = names(bn2),
+                  nse = as.vector(bn2))
 
 # adding elevation
 pof$elev <- sapply(pof$sub, function(sub) {
@@ -252,15 +250,22 @@ pof$down <- sapply(pof$sub, function(s) {
 })
 pof$nsub = pof$up + pof$down # watershed size
 
+# adding density of stations per region (no. gauges/no. subs)
 subs_per_region <- tapply(wshed$region, wshed$region, length)
 pof$dens <- pof$ngauge/subs_per_region[pof$region]
 
-pof2 <- pof[-which(pof$nse < 0.2),]
-pof2 <- pof
-# nse ~ down * elev * ngauge
-# lm1 <- lm(nse ~ down * elev * propg, data=pof)
-lm1 <- lm(nse ~ dens * elev, data=pof2)
-plot(pof2$nse, predict.lm(lm1), xlab = "obs", ylab = "sim")
-rsq(pof2$nse, predict.lm(lm1))
-summary(lm1)
+# adding SWAT generated SD 
+pof$sd <- sapply(pof$sub, function(s) {
+  sd(md2$Qs[which(md2$sub == s)], na.rm=T)
+})
 
+# adding whether a station exists in that sub 1/0
+pof$pstat <- sapply(pof$sub, function(s) {
+  return(as.numeric(s %in% met_st$sub))
+})
+
+# model of all variables
+xvars <- c("elev", "pstat", "ngauge", "nsub", "sd", "down")
+
+model1 <- lm(form1, data=pof)
+k <- step(model1, scope=nse ~ . + .^2)
