@@ -126,7 +126,7 @@ md1 <- match_day(r1)
 md2 <- match_day(r2)
 
 {
-  png(filename="plots/fig3.png", width=800, height=800, 
+  png(filename="figures/fig3.png", width=800, height=800, 
       pointsize=20, units="px")
   par(mfrow = c(2,3))
   cex1 = 0.5
@@ -165,7 +165,7 @@ md2 <- match_day(r2)
   idf <- tapply(idf$I, list(idf$region, idf$mon), function(x) x)
   pal <- brewer.pal(6, 'Accent')
   
-  png(filename="plots/fig5.png", width=450, height=800,
+  png(filename="figures/fig5.png", width=450, height=800,
       pointsize=15, units="px")
   par(mfrow=c(2,1))
   for(i in 1:6) {
@@ -265,7 +265,21 @@ pof$pstat <- sapply(pof$sub, function(s) {
 })
 
 # model of all variables
-xvars <- c("elev", "pstat", "ngauge", "nsub", "sd", "down")
+xvars <- c("elev", "pstat", "ngauge", "sd", "down", "nsub")
+form1 <- paste("nse ~ ", paste(xvars, collapse = '+'))
 
 model1 <- lm(form1, data=pof)
 k <- step(model1, scope=nse ~ . + .^2)
+
+pof_model <- summary(k)$coefficients
+row.names(pof_model) <- c("Intercept", "1. Elevation", 
+                          "2. Presence of gauge in subbasin",
+                          "3. Total number of gauges in region", 
+                          "4. SD of discharge (simulated)", 
+                          "5. Number of downstream subbasins",
+                          "6. Size of watershed (# subbasins)",
+                          "Interaction term 5:6",
+                          "Interaction term 4:6",
+                          "Interaction term 2:5")
+
+write.csv(pof_model, "figures/table3.csv")
