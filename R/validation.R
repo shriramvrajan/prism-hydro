@@ -1,6 +1,7 @@
 library(raster)
 library(hydroGOF)
 library(reshape2)
+library(RColorBrewer)
 
 ### Data =======================================================================
 
@@ -30,6 +31,7 @@ alphas_q <- readRDS("data/opt_qidw_noelev.RDS")
 # alpha values for quantity
 
 pcp90 <- readRDS("~/panama_scripts/weather/data/hm_90s/interp2/pmodel_winterp.RDS") 
+# precipitation records for the 1990s
 
 ## Functions ===================================================================
 
@@ -116,6 +118,7 @@ validate <- function(v, nfl = 3, by = 'subm', type='mean', ...) {
   print(NSE(q2$qs, q2$qo))
   print(paste("Pbias", pbias(q2$qs, q2$qo)))
   plot(q2$qo, q2$qs, pch=19, ...)
+  abline(0, 1)
   return(q2)
   
 }
@@ -126,25 +129,32 @@ md1 <- match_day(r1)
 md2 <- match_day(r2)
 
 {
-  png(filename="figures/fig3.png", width=800, height=800, 
+  png(filename="figures/fig3.png", width=1150, height=700, 
       pointsize=20, units="px")
-  par(mfrow = c(2,3))
+  par(mfrow = c(2,3), mar=c(5, 5, 4, 2))
   cex1 = 0.5
-  
-  # mean
-  v1 <- validate(md1, cex=cex1, main='Mean discharge,\n NN model')
-  v2 <- validate(md2, cex=cex1, main='Mean discharge,\n RDW model')
-  
-  # sd
-  v1s <- validate(md1, cex=cex1, type='sd', main='SD discharge,\n NN model')
-  v2s <- validate(md2, cex=cex1, type='sd', main='SD discharge,\n RDW model')
-  
-  # max
   nfl1 = 3 # top n max days
+  
+  xlab = expression(paste("Observed, m"^"3"*"/s"))
+  ylab = expression(paste("Simulated, m"^"3"*"/s"))
+  
+  # nearest neighbour model
+  v1 <- validate(md1, cex=cex1, main='Mean discharge,\n NN model',
+                 xlab=xlab, ylab=ylab)
+  v1s <- validate(md1, cex=cex1, type='sd', main='SD discharge,\n NN model',
+                  xlab=xlab, ylab=ylab)
   v1e <- validate(md1, cex=cex1, type='fl', nfl=nfl1,
-                  main='Max. discharge,\n NN model')
+                  main='Max. discharge,\n NN model',
+                  xlab=xlab, ylab=ylab)
+  
+  # regional distance weighted model
+  v2 <- validate(md2, cex=cex1, main='Mean discharge,\n RDW model',
+                 xlab=xlab, ylab=ylab)
+  v2s <- validate(md2, cex=cex1, type='sd', main='SD discharge,\n RDW model',
+                  xlab=xlab, ylab=ylab)
   v2e <- validate(md2, cex=cex1, type='fl', nfl=nfl1,
-                  main='Max. discharge,\n RDW model')
+                  main='Max. discharge,\n RDW model',
+                  xlab=xlab, ylab=ylab)
   dev.off()
 }
 
@@ -165,15 +175,15 @@ md2 <- match_day(r2)
   idf <- tapply(idf$I, list(idf$region, idf$mon), function(x) x)
   pal <- brewer.pal(6, 'Accent')
   
-  png(filename="figures/fig5.png", width=450, height=800,
+  png(filename="figures/fig5.png", width=500, height=800,
       pointsize=15, units="px")
-  par(mfrow=c(2,1))
+  par(mfrow=c(2,1), mar=c(5, 5, 4, 2))
   for(i in 1:6) {
     if(i == 1) {
       plot(1:12, adf$x[adf$region == i], type='l', col=pal[i], 
            lwd = 2, ylim = c(0, 16), xlab = "Month", 
            main = "Strength of interpolation parameters\n by region and month",
-           ylab = expression(paste(alpha, " for interpolating occurrence")))
+           ylab = expression(paste(alpha, ", decay parameter for occurrence")))
     } else {
       lines(1:12, adf$x[adf$region == i], col=pal[i], lwd=2) 
     }
@@ -183,7 +193,7 @@ md2 <- match_day(r2)
     if(i == 1) {
       plot(1:12, adf$q[adf$region == i], type='l', col=pal[i], 
            lwd = 2, ylim = c(0, 11), xlab = "Month",
-           ylab = expression(paste(alpha, " for interpolating quantity")))
+           ylab = expression(paste(alpha, ", decay parameter for quantity")))
     } else {
       lines(1:12, adf$q[adf$region == i], col=pal[i], lwd=2) 
     }
@@ -257,6 +267,11 @@ pof$dens <- pof$ngauge/subs_per_region[pof$region]
 # adding SWAT generated SD 
 pof$sd <- sapply(pof$sub, function(s) {
   sd(md2$Qs[which(md2$sub == s)], na.rm=T)
+})
+
+# SWAT generated mean
+pof$mean <- sapply(pof$sub, function(s) {
+  mean(md2$Qs[which(md2$sub == s)], na.rm=T)
 })
 
 # adding whether a station exists in that sub 1/0
