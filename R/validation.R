@@ -282,9 +282,15 @@ pof$pstat <- sapply(pof$sub, function(s) {
 # model of all variables
 xvars <- c("elev", "pstat", "ngauge", "sd", "down", "nsub")
 form1 <- paste("nse ~ ", paste(xvars, collapse = '+'))
-
 model1 <- lm(form1, data=pof)
-k <- step(model1, scope=nse ~ . + .^2)
+
+# Brian's best model
+# l=lm(within ~ elev2*downN*nsubs+pstat+pst+nsubs*sdev,data=dst2);summary(l)
+form2 <- nse ~ elev*down*nsub + pstat + ngauge + nsub*sd
+model2 <- lm(form2, data=pof)
+
+k <- step(model1, scope=~ . + .^2, direction = "forward", trace=1)
+# k <- step(model1, scope=~ , direction = "forward")
 
 pof_model <- summary(k)$coefficients
 row.names(pof_model) <- c("Intercept", "1. Elevation", 
@@ -297,4 +303,4 @@ row.names(pof_model) <- c("Intercept", "1. Elevation",
                           "Interaction term 4:6",
                           "Interaction term 2:5")
 
-write.csv(pof_model, "figures/table3.csv")
+# write.csv(pof_model, "figures/table3.csv")
