@@ -258,7 +258,11 @@ pof$up <- sapply(pof$sub, function(s) {
 pof$down <- sapply(pof$sub, function(s) {
   length(downst[[as.character(s)]])
 })
-pof$nsub = pof$up + pof$down # watershed size
+nsub <- readRDS("data/nsubs.RDS")
+pof$nsub <- unlist(sapply(pof$sub, function(s) {
+  if(s == 981) s <- 94
+  nsub$nsubs[which(nsub$Subbasin == s)]
+})) # watershed size
 
 # adding density of stations per region (no. gauges/no. subs)
 subs_per_region <- tapply(wshed$region, wshed$region, length)
