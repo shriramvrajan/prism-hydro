@@ -1,3 +1,6 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:d230047c4a4b6098a42af8ebb45e9053893d59bb06d8e0d1f38cf8b0cbe262a0
-size 106
+Data layer,Source
+DEM (Digital Elevation Model),
+Soils map,
+Land use map,
+Precipitation,
+Discharge,
