@@ -9,7 +9,6 @@
 ### SWITCHES ===================================================================
 
 source("R/precipitation_functions.R")
-rm(list = ls())
 
 datecurr <- as.character(Sys.Date())
 
@@ -19,28 +18,37 @@ int_parallel = T                     ## use multiple CPU cores?
 ncores <- ifelse(int_parallel, 3, 1) ## how many CPU cores  
 int_outname = paste0("pcp_out_", datecurr, ".RDS")
 int_pcpname = "pcp2020rd.pcp" 
-int_scale = 'redist'                 ## scaling to fix 2-step quantity loss
+int_scale = 'n'                 ## scaling to fix 2-step quantity loss
 
 val_fnam <- paste0("0514_daily_", datecurr, ".rch")
 
-do_interp = T
-do_scaling = T
-do_swat = T
-do_val = T
+do_pfitting = T
+do_interp = F
+do_scaling = F
+do_swat = F
+do_val = F
 
+### 1a. Fitting =================================================================
 
-
-
-### 1. Forecasting =============================================================
-
-if(do_forecast) {
-  setwd("~/panama_scripts/weather/data/forecasting")
-  Log("Forecasting seeds..")
-  out1 <- generate_fullpcp(startdate='2005-01-01', enddate='2015-01-31', XSAC=T,
-                           means=fc_means, Qmodel='gamma')
-  saveRDS(out1, fc_outname)
-  plot_pcp(out1)
+if(do_pfitting) {
+  Log("Fitting rainfall parameters...")
+  opt2 <- all_interp(step="fit", algorithm="1step", pcpraw = pcp90) 
+  p_3 <- all_interp(pcpraw=pcp00, parset=opt2, algorithm="1step", 
+                    step="gen", dis=dm1)
+  ## troubleshoot HERE
 }
+
+
+### 1b. Forecasting =============================================================
+
+# if(do_forecast) {
+#   setwd("~/panama_scripts/weather/data/forecasting")
+#   Log("Forecasting seeds..")
+#   out1 <- generate_fullpcp(startdate='2005-01-01', enddate='2015-01-31', XSAC=T,
+#                            means=fc_means, Qmodel='gamma')
+#   saveRDS(out1, fc_outname)
+#   plot_pcp(out1)
+# }
 
 ### 2. Interpolating ===========================================================
 
@@ -63,18 +71,21 @@ if(do_interp) {
   pcp01$obs[which(is.na(pcp01$obs))] <- 0
   pcp01$wet_obs <- as.numeric(pcp01$obs >= 0.5)
   
-  p_out <- interpolate_full(pcp=pcp01, pred1="obs", pname="NA", tofile=F)
+  p_out <- interpolate_full(pcp=pcp01, pred1="obs", pname="NA", alg="1step",
+                            tofile=F)
   saveRDS(p_out, paste0("output/", int_outname))
 }
 
 ### 3. Scaling and writing .pcp file ===========================================
 if(do_scaling) {
   Log("Processing and scaling interpolated precipitation...")
-  
   p_out <- readRDS(paste0("output/", int_outname))
   p_sc <- postprocess_and_scale(p_out, scale=int_scale)
 
   writeLines(p_sc, paste0("output/", int_pcpname))
+} else {
+  ## no need to scale for 1-step algorithm
+  writeLines(p_out, paste0("output/", int_pcpname))
 }
 
 ### 4. Changing temperature based on WC ========================================

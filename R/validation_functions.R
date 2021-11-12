@@ -19,7 +19,7 @@ outliers <- c(11, 564, 255, 190, 403, 393, 530)
 ## Three hashes means they're the most downstream observation pt of that river
 ## Explanation for those: border, poorly delineated, downstream of dam
 
-wshed <- shapefile("data/wshed_regionalized.shp")
+wshed <- readRDS("data/wshed_regionalized.RDS")
 upst <- readRDS("data/upstream.rds")
 downst <- readRDS("data/downstream.rds")
 
@@ -31,7 +31,7 @@ alphas_q <- readRDS("data/opt_qidw_elev.RDS")
 met_st <- readRDS("data/met_stations.RDS") # meteo. stations locations
 hyd_st <- readRDS("data/hyd_stations.RDS") # hydro. stations locations
 
-pcp90 <- readRDS("data/all_days_records.RDS")
+pcp90 <- readRDS("data/1990s_precipitation.RDS")
 
 ### Functions ==================================================================
 
@@ -129,7 +129,7 @@ rsq <- function(x, y) {
 
 
 
-match_day <- function(rch) {
+match_day <- function(rch, simyears) {
   obs <- r0
   obs <- obs[-which(obs$sub %in% outliers), ]
   obs <- obs[which(obs$year %in% simyears), ]

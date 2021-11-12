@@ -6,3 +6,5 @@ R/appendix.R
 R/precipitation_scratch.R
 R/validation_scratch.R
 output/**
+log.txt
+

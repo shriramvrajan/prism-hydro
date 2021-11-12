@@ -4,45 +4,41 @@ source("R/validation_functions.R")
 ### Data =======================================================================
 
 r1 <- readRDS("data/results/SWATnaive_model.RDS")
-r2 <- readRDS("data/results/SWATfinal_model.RDS")
-r3 <- readRDS("data/results/SWAT2005to2020.RDS")
+r2 <- readRDS("data/results/SWAT1step_model.RDS")
+r3 <- readRDS("data/results/SWAT2step_model.RDS")
 
-simyears <- 2005:2015
+simyears1 <- 2005:2015
 
 
 ### Paper figures :
 ### Mean SD max ================================================================
 
-md1 <- match_day(r1)
-md2 <- match_day(r2)
+md1 <- match_day(r1,simyears=simyears1)
+md2 <- match_day(r2,simyears=simyears1)
+md3 <- match_day(r3,simyears=simyears1)
 
 {
   png(filename="figures/fig3.png", width=1150, height=700, 
       pointsize=20, units="px")
-  par(mfrow = c(2,3), mar=c(5, 5, 4, 2))
   cex1 = 0.5
   nfl1 = 3 # top n max days
-  
   ylab = expression(paste("Observed, m"^"3"*"/s"))
   xlab = expression(paste("Simulated, m"^"3"*"/s"))
   
-  # nearest neighbour model
-  v1 <- validate(md1, cex=cex1, main='Mean discharge,\n NN model',
-                 xlab=xlab, ylab=ylab)
-  v1s <- validate(md1, cex=cex1, type='sd', main='SD discharge,\n NN model',
-                  xlab=xlab, ylab=ylab)
-  v1e <- validate(md1, cex=cex1, type='fl', nfl=nfl1,
-                  main='Max. discharge,\n NN model',
-                  xlab=xlab, ylab=ylab)
+  meansdmax <- function(md, name, ...) {
+    vm <- validate(md, cex=cex1, xlab=xlab, ylab=ylab,
+                   main=paste0('Mean discharge,\n ', name))
+    vs <- validate(md, cex=cex1, type='sd', xlab=xlab, ylab=ylab,
+                   main=paste0('SD discharge,\n ', name))
+    ve <- validate(md, cex=cex1, type='fl', xlab=xlab, ylab=ylab,
+                   main=paste0('Max. discharge,\n ', name))
+    return(list(vm, vs, ve))
+  }
   
-  # regional distance weighted model
-  v2 <- validate(md2, cex=cex1, main='Mean discharge,\n RDW model',
-                 xlab=xlab, ylab=ylab)
-  v2s <- validate(md2, cex=cex1, type='sd', main='SD discharge,\n RDW model',
-                  xlab=xlab, ylab=ylab)
-  v2e <- validate(md2, cex=cex1, type='fl', nfl=nfl1,
-                  main='Max. discharge,\n RDW model',
-                  xlab=xlab, ylab=ylab)
+  par(mfrow = c(3,3), mar=c(5, 5, 4, 2))
+  results_nn <- meansdmax(md1, 'NN model')
+  results_rdw1 <- meansdmax(md2, 'RDW1 model')
+  results_rdw2 <- meansdmax(md3, 'RDW2 model')
   dev.off()
 }
 

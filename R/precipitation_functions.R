@@ -17,6 +17,7 @@ cent <- readRDS("data/cent980.RDS")
 pcp00 <- readRDS("data/2000s_precipitation.RDS")
 pcp00$index0 <- 1:nrow(pcp00)
 # index1 corresponds to days
+pcp90 <- readRDS("data/1990s_precipitation.RDS")
 
 wetmodels <- readRDS("data/logistic_to_wetdry.RDS")
 ## models for IDW occurrence -> wet/dry probability
@@ -80,9 +81,9 @@ interpolate_reg <- function(par, pcp_out, pcp_avail, dis, pcpmodel="lin",
   ## Getting the right indices to fill in with foreach
   # Log("getting indices...")
   alldays = unique(pcp_out$index1)
-  indices <- sapply(alldays, function(x) {
+  indices <- unlist(sapply(alldays, function(x) {
     return(which(pcp_out$index1 == x))
-  })
+  }))
   
   ndays <- length(alldays)
   failcount = 0
@@ -143,7 +144,7 @@ interpolate_reg <- function(par, pcp_out, pcp_avail, dis, pcpmodel="lin",
             which(p_obs$index0 != p_out$index0[r] & p_obs$wet_obs == 1)
           } else {
             which(p_obs$wet_obs == 1)}
-        }
+        } 
         
         n <- length(pos)
         if(n == 0){
@@ -154,7 +155,7 @@ interpolate_reg <- function(par, pcp_out, pcp_avail, dis, pcpmodel="lin",
                         # "eps"=ptmp$epsbar[r], 
                         # "eps2"=ptmp$epsbar[r],
                         "eps3"=0, "wet"=0.5, "wet2"=0.5, "wet3"=0.5,
-                        "quantidw"=0.5))
+                        "quantidw"=0.5, "1step"=0.5))
         }
         
         # ids <- switch(alg, "wet"=p_obs$id[pos], "quantidw"=p_obs$id[pos_wet])
@@ -171,13 +172,14 @@ interpolate_reg <- function(par, pcp_out, pcp_avail, dis, pcpmodel="lin",
         
         values <- switch(alg, ## Values to interpolate with
                          "quantidw"=p_obs$obs[pos_wet],
+                         "1step"=p_obs$obs[pos],
                          "wet"=p_obs$wet_obs[pos])
         
         d <- unlist(lapply(1:n, function(x) {
           return(dis[stindex, which(stat$Number == ids[x])])
         }))
         
-        if(alg == "wet") {
+        if(alg == "wet" | alg == "1step") {
           v_interp <- (sum(values*exp(-alpha * d)) / (sum(exp(-alpha * d)))) 
         } else if(alg == "quantidw") {
           dnum <- unlist(lapply(1:length(pos_wet), function(x) {
@@ -195,7 +197,7 @@ interpolate_reg <- function(par, pcp_out, pcp_avail, dis, pcpmodel="lin",
   
   pcp2 <- pcp_out
   
-  if(alg == "quantidw") {
+  if(alg == "quantidw" | alg == "1step") {
     
     pcp2$predidw <- interp
     
@@ -235,12 +237,14 @@ interpolate_reg <- function(par, pcp_out, pcp_avail, dis, pcpmodel="lin",
 
 
 ########### Interpolate all 6 regions ###########
-all_interp <- function(pcpraw, pcpout, step, parset=0, nregions=6, algorithm, ...) {
+all_interp <- function(pcpraw, pcpout, step, 
+                       parset=readRDS("data/opt_qidw_elev.RDS"), 
+                       nregions=6, algorithm, ...) {
   
   all_interp_mainfunction <- function(step, algorithm, ...) {
     if(step == "fit") {
       opttmp <- optimize(f=interpolate_reg, pcp_avail=pcp0, dis=dm1,
-                         interval=c(0.001, 30), alg=algorithm, outtype=1, ...)
+                         interval=c(0.001, 20), alg=algorithm, outtype=1, ...)
       return(opttmp$minimum)
     } else if (step == "gen") {
       par0 <- parset[[which(reg_mon$region == region & reg_mon$month == month)]]
@@ -481,7 +485,11 @@ postprocess_and_scale <- function(p_out, scale) {
       mean(x, na.rm=T) })
   }
   
-  p_out$wet_obs <- as.numeric(runif(nrow(p_out)) < p_out$w_interp3)
+  if("w_interp3" %in% names(p_out)) {
+    p_out$wet_obs <- as.numeric(runif(nrow(p_out)) < p_out$w_interp3)
+  } else {
+    p_out$wet_obs <- as.numeric(p_out$predidw >= 0.5)
+  }
   p_out$pcp <- p_out$predidw
   
   # if(!test1){
@@ -489,6 +497,7 @@ postprocess_and_scale <- function(p_out, scale) {
   #   p_out$pcp[p_out$wet_obs == 1 & p_out$pcp < 0.5] <- 0.5
   # }
   p_out$pcp[is.na(p_out$pcp)] <- 0
+  if(any(p_out$pcp < 0)) p_out$pcp[p_out$pcp < 0] <- 0
   
   p_scaled <- p_out
   if(scale=='redist') {
@@ -657,6 +666,8 @@ write_swatpcp <- function(dat, output_type='.pcp', model_type='interpolated',
 interpolate_full <- function(pcp, pred1, pmeans='default', 
                              pars_wetdryfile = "data/optim_alpha_wet_month.RDS",
                              pars_quantfile = "data/opt_qidw_elev.RDS",
+                             pars_1stepfile = "data/opt_idw_1step.RDS",
+                             alg = "1step",
                              scalarsfile0,
                              simname = "~/panama_swat3/Scenarios/sim1_p2step/",
                              pname,
@@ -667,6 +678,7 @@ interpolate_full <- function(pcp, pred1, pmeans='default',
   
   pars_wetdry <- readRDS(pars_wetdryfile)
   pars_quant <- readRDS(pars_quantfile)
+  pars_1step <- readRDS(pars_1stepfile)
   
   cat("Building data frame...", "\n")
   pcp_out00 <- build_outdf(pmeans=pmeans, nday=nday)
@@ -680,15 +692,21 @@ interpolate_full <- function(pcp, pred1, pmeans='default',
   obspos <- which(colnames(pcp) == pred1)
   names(pcp)[obspos] <- "obs" ## need to do this to pass correctly to quantidw
   
-  cat("Calculating wet days...", "\n")
-  pcp_outwd <- all_interp(pcpraw=pcp, pcpout=pcp_out00, step="gen", dis=distmat,
-                          parset=pars_wetdry, algorithm="wet")
-  pcp_outwd$wet_obs <- unlist(lapply(pcp_outwd$w_interp2, function(p) {
-    return(as.numeric(runif(1) < p))
-  }))
-  cat("Calculating quantities...", "\n")
-  pcp_outq <- all_interp(pcpraw=pcp, pcpout=pcp_outwd, step="gen", dis=distmat,
-                         parset=pars_quant, algorithm="quantidw")
+  if(alg == "2step") {
+    cat("Calculating wet days...", "\n")
+    pcp_outwd <- all_interp(pcpraw=pcp, pcpout=pcp_out00, step="gen", dis=distmat,
+                            parset=pars_wetdry, algorithm="wet")
+    pcp_outwd$wet_obs <- unlist(lapply(pcp_outwd$w_interp2, function(p) {
+      return(as.numeric(runif(1) < p))
+    }))
+    cat("Calculating quantities...", "\n")
+    pcp_outq <- all_interp(pcpraw=pcp, pcpout=pcp_outwd, step="gen", dis=distmat,
+                           parset=pars_quant, algorithm="quantidw")
+  } else if (alg == "1step") {
+    cat("Calculating quantities...", "\n")
+    pcp_outq <- all_interp(pcpraw=pcp, pcpout=pcp_out00, step="gen", dis=distmat,
+                           parset=pars_1step, algorithm="1step")
+  }
   
   if(tofile) {
     cat("Writing to file...", "\n")
