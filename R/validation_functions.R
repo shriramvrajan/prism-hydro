@@ -27,6 +27,7 @@ alphas_x <- readRDS("data/optim_alpha_wet_month.RDS")
 # interpolation kernel decay parameter values for wet/dry
 alphas_q <- readRDS("data/opt_qidw_elev.RDS") 
 # interpolation kernel decay parameter values for quantity
+alphas_q0 <- readRDS("data/opt_idw_1step.RDS")
 
 met_st <- readRDS("data/met_stations.RDS") # meteo. stations locations
 hyd_st <- readRDS("data/hyd_stations.RDS") # hydro. stations locations

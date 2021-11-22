@@ -18,7 +18,7 @@ md2 <- match_day(r2,simyears=simyears1)
 md3 <- match_day(r3,simyears=simyears1)
 
 {
-  png(filename="figures/fig3.png", width=1150, height=700, 
+  png(filename="figures/fig3.png", width=700, height=1000, 
       pointsize=20, units="px")
   cex1 = 0.5
   nfl1 = 3 # top n max days
@@ -45,29 +45,31 @@ md3 <- match_day(r3,simyears=simyears1)
 
 ## Alphas ======================================================================
 
+adf <- data.frame(region = unlist(lapply(1:6, function(x) rep(x, 12))),
+                  month = rep(1:12, 6),
+                  x = unlist(alphas_x), 
+                  q = unlist(alphas_q),
+                  q0 = unlist(alphas_q0))   # data frame of alphas
+idf <- adf[, 1:2]
+idf$I <- unlist(lapply(1:nrow(idf), function(x) {
+  cat(idf$region[x], idf$month[x], "\n")
+  p90 <- pcp90[pcp90$region == idf$region[x] & pcp90$mon == idf$month[x], ]
+  return(sd(p90$obs))
+}))
+idf <- tapply(idf$I, list(idf$region, idf$mon), function(x) x)
+pal <- c("#1205FA", "#FA0573", "#EDFA05", 
+         "#01FE06", "#F900FF", "#00FFF7")
+
 {
-  adf <- data.frame(region = unlist(lapply(1:6, function(x) rep(x, 12))),
-                    month = rep(1:12, 6),
-                    x = unlist(alphas_x), 
-                    q = unlist(alphas_q))   # data frame of alphas
-  idf <- adf[, 1:2]
-  idf$I <- unlist(lapply(1:nrow(idf), function(x) {
-    cat(idf$region[x], idf$month[x], "\n")
-    p90 <- pcp90[pcp90$region == idf$region[x] & pcp90$mon == idf$month[x], ]
-    return(sd(p90$obs))
-  }))
-  idf <- tapply(idf$I, list(idf$region, idf$mon), function(x) x)
-  pal <- brewer.pal(6, 'Accent')
-  
-  png(filename="figures/fig5.png", width=500, height=800,
+  png(filename="figures/fig5.png", width=450, height=700,
       pointsize=15, units="px")
-  par(mfrow=c(2,1), mar=c(5, 5, 4, 2))
+  par(mfrow=c(3,1), mar=c(4, 5, 3, 2))
   for(i in 1:6) {
     if(i == 1) {
       plot(1:12, adf$x[adf$region == i], type='l', col=pal[i], 
-           lwd = 2, ylim = c(0, 16), xlab = "Month", 
+           lwd = 2, ylim = c(0, 16), xlab = "", 
            main = "Strength of interpolation parameters\n by region and month",
-           ylab = expression(paste(alpha, ", decay parameter for occurrence")))
+           ylab = expression(paste(alpha, " for occurrence, RDW2")))
     } else {
       lines(1:12, adf$x[adf$region == i], col=pal[i], lwd=2) 
     }
@@ -76,13 +78,26 @@ md3 <- match_day(r3,simyears=simyears1)
   for(i in 1:6) {
     if(i == 1) {
       plot(1:12, adf$q[adf$region == i], type='l', col=pal[i], 
-           lwd = 2, ylim = c(0, 11), xlab = "Month",
-           ylab = expression(paste(alpha, ", decay parameter for quantity")))
+           lwd = 2, ylim = c(0, 11), xlab = "",
+           ylab = expression(paste(alpha, " for quantity, RDW2")))
     } else {
       lines(1:12, adf$q[adf$region == i], col=pal[i], lwd=2) 
     }
   }
   abline(v = c(4, 10))
+  legend(x=5.5, y=11,legend = c("Region 1", "Region 2", "Region 3",
+                                 "Region 4", "Region 5", "Region 6"),
+        lty=1, col=pal, lwd=2, box.lty=0)
+  for(i in 1:6) {
+    if(i == 1) {
+      plot(1:12, adf$q0[adf$region == i], type='l', col=pal[i], 
+           lwd = 2, ylim = c(0, 20), xlab = "Month",
+           ylab = expression(paste(alpha, " for quantity, RDW1")))
+    } else {
+      lines(1:12, adf$q0[adf$region == i], col=pal[i], lwd=2) 
+    }
+  }
+  abline(v = c(4, 10)) ### whole thing should just be a function
   
   dev.off()
 }
@@ -100,6 +115,7 @@ b_nse <- function(md) {
 
 bn1 <- b_nse(md1)
 bn2 <- b_nse(md2)
+bn3 <- b_nse(md3)
 
 ### Predictors of failure ======================================================
 

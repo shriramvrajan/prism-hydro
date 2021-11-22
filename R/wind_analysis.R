@@ -7,7 +7,7 @@ library('plotrix')
 ## I found the R package 'rWind' to be useful in transforming that data to speed and direction.
 ## gcWind (Gulf of Chiriqui), gpWind(Gulf of Panama), apWind (Azuero Peninsula). 
 ## Data subset corresponding to 1x1 degree grids ~30-km south from shore.
-pcp90 <- readRDS("data/all_days_records.RDS")
+pcp90 <- readRDS("data/1990s_precipitation.RDS")
 adf <- readRDS("data/alpha_values.RDS")
 
 wgc <- read.csv("../data/gcWind.csv"); wgc$loc <- "gc"
