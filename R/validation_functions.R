@@ -33,6 +33,7 @@ met_st <- readRDS("data/met_stations.RDS") # meteo. stations locations
 hyd_st <- readRDS("data/hyd_stations.RDS") # hydro. stations locations
 
 pcp90 <- readRDS("data/1990s_precipitation.RDS")
+pcp00 <- readRDS("data/2000s_precipitation.RDS")
 
 ### Functions ==================================================================
 
@@ -201,6 +202,12 @@ validate <- function(v, nfl = 3, by = 'subm', type='mean', ...) {
   
   plot(q2$qs, q2$qo, pch=19, ...)
   abline(0, 1)
+  
+  textstr <- paste("NSE:", round(NSE(q2$qs, q2$qo), 2), 
+                   "Pbias:", round(pbias(q2$qs, q2$qo), 1))
+  
+  mtext(textstr, side=3, cex=0.7)
+  ## Add R2 and NSE to graph here
   return(q2)
   
 }
