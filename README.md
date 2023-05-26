@@ -1,5 +1,4 @@
-## Hydrological Model of Panama
-### Panama Research and Integrated Sustainability Project
+## Hydrological model of Panama
 
 This project is intended to eventually cover the following:
 - Interpolation of precipitation gauge data
