@@ -14,19 +14,19 @@ datecurr <- as.character(Sys.Date())
 
 actual_interp <- TRUE ## Only F for forecasting
 
-int_parallel = T                     ## use multiple CPU cores?
-ncores <- ifelse(int_parallel, 3, 1) ## how many CPU cores  
-int_outname = paste0("pcp_out_", datecurr, ".RDS")
-int_pcpname = "pcp2020rd.pcp" 
-int_scale = 'n'                 ## scaling to fix 2-step quantity loss
+int_parallel <- FALSE                ## use multiple CPU cores?
+ncores <- ifelse(int_parallel, 3, 1) ## how many CPU cores
+int_outname <- paste0("pcp_out_", datecurr, ".RDS")
+int_pcpname <- "pcp2020rd.pcp"
+int_scale   <- "n"                 ## scaling to fix 2-step quantity loss
 
 val_fnam <- paste0("0514_daily_", datecurr, ".rch")
 
-do_pfitting = T
-do_interp = F
-do_scaling = F
-do_swat = F
-do_val = F
+do_pfitting <- TRUE
+do_interp   <- FALSE
+do_scaling  <- FALSE
+do_swat     <- FALSE
+do_val      <- FALSE
 
 ### 1a. Fitting =================================================================
 

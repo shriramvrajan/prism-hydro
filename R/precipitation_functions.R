@@ -718,6 +718,28 @@ interpolate_full <- function(pcp, pred1, pmeans='default',
   }
 }
 
+pcp_to_df <- function(pcp) {
+  pcp <- readLines(pcp)
+  meta <- data.frame(location = paste0("p", 1:980),
+                     lat = cent$Lat - 0.001,
+                     long = cent$Long_,
+                     elev = cent$Elev)
+
+  dat <- data.frame(matrix(NA, nrow=4017, ncol=981))
+  dat[, 1] <- day_indices[1:4017]
+  dat[, 2:981] <- do.call(rbind, lapply(1:4017, function(x) {
+     s <- substr(pcp[x + 4], 8, nchar(pcp[x + 4]))
+     val <- sapply(seq(from = 1, to = nchar(s), by = 5), function(i) {
+       substr(s, i, i+4)
+     })
+     val <- as.numeric(val)
+     return(val)
+  }))
+  names(dat) <- c("day", meta$location)
+  write.csv(dat, "data/p_interpolated_20052015.csv", row.names = FALSE)
+  write.csv(meta, "data/p_interpolated_meta.csv", row.names = FALSE)
+}
+
 ####### Writing temp in ##############
 
 write_temp <- function(type='future', rcp, model, year,
